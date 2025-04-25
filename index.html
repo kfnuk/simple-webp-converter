@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple WebP Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        #drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            width: 300px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            margin: 10px;
+            padding: 20px;
+            cursor: pointer;
+        }
+        #drop-zone.hover {
+            background-color: #f0f0f0;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        button {
+            margin: 10px;
+        }
+        #download-links {
+            margin-top: 20px;
+        }
+        a {
+            display: block;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Image to WebP Converter</h1>
+    <div id="drop-zone">Drop images here or click to upload</div>
+    <input type="file" id="file-input" multiple accept="image/*">
+    <button onclick="convertImages()">Convert to WebP</button>
+
+    <div id="download-links"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('hover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            fileInput.files = e.dataTransfer.files;
+        });
+
+        async function convertImages() {
+            const downloadLinks = document.getElementById('download-links');
+            downloadLinks.innerHTML = '';
+
+            if (!fileInput.files.length) {
+                alert('Please select or drop one or more image files.');
+                return;
+            }
+
+            for (const file of fileInput.files) {
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
+
+                await new Promise(resolve => {
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+
+                        canvas.toBlob(blob => {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file.name.split('.')[0] + '.webp';
+                            a.textContent = 'Download ' + a.download;
+                            downloadLinks.appendChild(a);
+                        }, 'image/webp');
+                        resolve();
+                    };
+                });
+            }
+        }
+    </script>
+
+</body>
+</html>
