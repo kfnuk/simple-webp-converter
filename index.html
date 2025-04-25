@@ -6,43 +6,103 @@
     <title>Simple WebP Converter</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f7f8fa;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
+            justify-content: flex-start;
+            min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            padding: 40px 20px;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            color: #111;
         }
         #drop-zone {
-            border: 2px dashed #ccc;
-            border-radius: 10px;
-            width: 300px;
+            border: 2px dashed #bbb;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
             height: 200px;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
-            margin: 10px;
+            background-color: #fff;
+            transition: background-color 0.3s;
+            margin-bottom: 20px;
             padding: 20px;
             cursor: pointer;
         }
         #drop-zone.hover {
-            background-color: #f0f0f0;
+            background-color: #e0e7ff;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        label {
+            margin: 5px 0;
         }
         input[type="file"] {
             display: none;
         }
         button {
-            margin: 10px;
+            background-color: #6366f1;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 10px 0;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #4f46e5;
+        }
+        #file-list {
+            margin: 10px 0;
         }
         #download-links {
             margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        a {
-            display: block;
-            margin: 5px 0;
+        .download-btn {
+            background-color: #22c55e;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .download-btn:hover {
+            background-color: #16a34a;
+        }
+        #loading {
+            display: none;
+            margin-top: 20px;
+        }
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #6366f1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -51,13 +111,42 @@
     <h1>Image to WebP Converter</h1>
     <div id="drop-zone">Drop images here or click to upload</div>
     <input type="file" id="file-input" multiple accept="image/*">
-    <button onclick="convertImages()">Convert to WebP</button>
 
+    <div class="controls">
+        <label>Quality: <span id="quality-value">80%</span></label>
+        <input type="range" id="quality" min="10" max="100" step="5" value="80">
+        <label><input type="checkbox" id="lossless"> Lossless Compression (forces 100%)</label>
+        <label><input type="checkbox" id="strip-meta"> Strip Metadata (EXIF, etc.)</label>
+        <button onclick="convertImages()">Convert to WebP</button>
+    </div>
+
+    <div id="file-list"></div>
+    <div id="loading"><div class="spinner"></div></div>
     <div id="download-links"></div>
 
     <script>
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const qualityInput = document.getElementById('quality');
+        const qualityValue = document.getElementById('quality-value');
+        const losslessCheckbox = document.getElementById('lossless');
+        const stripMetaCheckbox = document.getElementById('strip-meta');
+        const loading = document.getElementById('loading');
+
+        qualityInput.addEventListener('input', () => {
+            qualityValue.textContent = qualityInput.value + '%';
+        });
+
+        losslessCheckbox.addEventListener('change', () => {
+            if (losslessCheckbox.checked) {
+                qualityInput.disabled = true;
+                qualityValue.textContent = '100% (Lossless)';
+            } else {
+                qualityInput.disabled = false;
+                qualityValue.textContent = qualityInput.value + '%';
+            }
+        });
 
         dropZone.addEventListener('click', () => fileInput.click());
 
@@ -74,7 +163,19 @@
             e.preventDefault();
             dropZone.classList.remove('hover');
             fileInput.files = e.dataTransfer.files;
+            showFileNames();
         });
+
+        fileInput.addEventListener('change', showFileNames);
+
+        function showFileNames() {
+            fileList.innerHTML = '';
+            for (const file of fileInput.files) {
+                const p = document.createElement('p');
+                p.textContent = file.name;
+                fileList.appendChild(p);
+            }
+        }
 
         async function convertImages() {
             const downloadLinks = document.getElementById('download-links');
@@ -84,6 +185,10 @@
                 alert('Please select or drop one or more image files.');
                 return;
             }
+
+            loading.style.display = 'block';
+
+            const quality = losslessCheckbox.checked ? 1 : parseFloat(qualityInput.value) / 100;
 
             for (const file of fileInput.files) {
                 const img = new Image();
@@ -97,18 +202,42 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0);
 
+                        let options = { type: 'image/webp', quality: quality };
+
                         canvas.toBlob(blob => {
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = file.name.split('.')[0] + '.webp';
-                            a.textContent = 'Download ' + a.download;
-                            downloadLinks.appendChild(a);
-                        }, 'image/webp');
+                            if (stripMetaCheckbox.checked && blob) {
+                                const tempImg = new Image();
+                                tempImg.src = URL.createObjectURL(blob);
+                                tempImg.onload = () => {
+                                    const tempCanvas = document.createElement('canvas');
+                                    tempCanvas.width = tempImg.width;
+                                    tempCanvas.height = tempImg.height;
+                                    const tempCtx = tempCanvas.getContext('2d');
+                                    tempCtx.drawImage(tempImg, 0, 0);
+                                    tempCanvas.toBlob(cleanBlob => {
+                                        createDownloadLink(cleanBlob, file.name);
+                                    }, 'image/webp', quality);
+                                };
+                            } else {
+                                createDownloadLink(blob, file.name);
+                            }
+                        }, 'image/webp', quality);
                         resolve();
                     };
                 });
             }
+
+            loading.style.display = 'none';
+        }
+
+        function createDownloadLink(blob, originalName) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = originalName.split('.')[0] + '.webp';
+            a.className = 'download-btn';
+            a.textContent = 'Download ' + a.download;
+            document.getElementById('download-links').appendChild(a);
         }
     </script>
 
