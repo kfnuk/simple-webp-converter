@@ -96,8 +96,35 @@ canvas {
   flex-wrap: wrap;
   justify-content: center;
 }
+select {
+  appearance: none;
+  -webkit-appearance: none; /* Safari / iOS */
+  -moz-appearance: none; /* Firefox */
+  background-color: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 1rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px 16px;
+  padding-right: 40px; /* Add space for arrow */
+}
 
-select, button, label {
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4); /* Nice focus ring */
+}
+
+option {
+  color: #333;
+  background: #fff;
+}
+
+button, label {
   background-color: #6366f1;
   color: #fff;
   border: none;
@@ -119,6 +146,32 @@ button:hover, select:hover {
 #canvas.hidden {
   display: none;
 }
+
+.aspect-ratio-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.aspect-ratio-group label {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #444;
+  font-size: 1rem;
+}
+
+#aspect-ratio {
+  width: 100%;
+  max-width: 480px;
+}
+    .aspect-ratio-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 1rem;
+  text-align: center;
+}
 </style>
 
 </head>
@@ -136,15 +189,42 @@ button:hover, select:hover {
     <div id="drop-zone">Drop image here or click to upload</div>
     <input type="file" id="file-input" accept="image/*">
     <canvas id="canvas"></canvas>
-    <div class="controls">
-      <select id="aspect-ratio">
+<div class="aspect-ratio-group">
+  <div class="aspect-ratio-title">Aspect Ratio</div>
+  <select id="aspect-ratio">
         <option value="free">Free</option>
-        <option value="1:1">1:1</option>
-        <option value="4:3">4:3</option>
-        <option value="16:9">16:9</option>
-        <option value="original">Keep Original</option>
+        <option value="original">Original</option>
+        <option value="1:1">1:1 Square (Instagram, Profile)</option>
+        
+        <!-- Social Media -->
+        <option disabled>-- Social Media --</option>
+        <option value="16:9">16:9 Landscape (YouTube, LinkedIn)</option>
+        <option value="9:16">9:16 Portrait (Instagram Stories, TikTok)</option>
+        <option value="4:5">4:5 Portrait (Instagram Feed)</option>
+        <option value="2:1">2:1 Landscape (Twitter, LinkedIn Banner)</option>
+        <option value="3:2">3:2 Landscape (Facebook)</option>
+        <option value="3:4">3:4 (Pinterest)</option>
+        <option value="8:10">8:10 (Pinterest Pin)</option>
+        
+        <!-- Ads -->
+        <option disabled>-- Ads --</option>
+        <option value="1:1.91">1:1.91 Facebook & Instagram Story Ad</option>
+        <option value="4:3">4:3 Classic Display Ad</option>
+        <option value="1.91:1">1.91:1 Facebook Feed Ad</option>
+        <option value="6:19">6:19 Instagram Reel Ad</option>
+        <option value="1:2">1:2 Google Display Ads</option>
+        
+        <!-- Web & Print -->
+        <option disabled>-- Web & Print --</option>
+        <option value="16:10">16:10 Website Banner</option>
+        <option value="3:1">3:1 Website Header</option>
+        <option value="21:9">21:9 Ultra-wide Banner</option>
+        <option value="4:6">4:6 Flyer</option>
+        <option value="1.414:1">1.414:1 A4/Letter (ISO)</option>
       </select>
-      <label><input type="checkbox" id="lock-aspect" checked /> Lock Aspect Ratio</label>
+    </div>
+    <div class="controls">
+      <label><input type="checkbox" id="lock-aspect" /> Lock Aspect Ratio</label>
       <button id="crop-btn">Crop</button>
       <button id="reset-btn">Reset</button>
       <button id="download-btn">Download</button>
@@ -168,6 +248,7 @@ let dragOffsetX = 0, dragOffsetY = 0;
 let activeHandle = null;
 let imageLoaded = false;
 let aspectRatio = null;
+let currentAspectRatio = null;
 
 canvas.classList.add('hidden');
 
@@ -210,6 +291,9 @@ function draw() {
     ctx.fill();
     ctx.stroke();
   });
+  
+  // Calculate and keep track of current aspect ratio
+  currentAspectRatio = cropW / cropH;
 }
 
 function getHandle(x, y) {
@@ -231,6 +315,11 @@ canvas.addEventListener('mousedown', e => {
   if (handle !== -1) {
     isResizing = true;
     activeHandle = handle;
+    
+    // If aspect ratio is "free" and lock is checked, use current ratio
+    if (aspectRatioSelect.value === 'free' && lockAspectCheckbox.checked) {
+      aspectRatio = currentAspectRatio;
+    }
   } else if (x > cropX && x < cropX + cropW && y > cropY && y < cropY + cropH) {
     isDragging = true;
     dragOffsetX = x - cropX;
@@ -244,10 +333,13 @@ canvas.addEventListener('mousemove', e => {
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
   if (isDragging) {
-    cropX = x - dragOffsetX;
-    cropY = y - dragOffsetY;
+    cropX = Math.max(0, Math.min(canvas.width - cropW, x - dragOffsetX));
+    cropY = Math.max(0, Math.min(canvas.height - cropH, y - dragOffsetY));
   } else if (isResizing) {
     const min = 20;
+    const oldCropX = cropX, oldCropY = cropY;
+    const oldCropW = cropW, oldCropH = cropH;
+    
     switch (activeHandle) {
       case 0: cropW += cropX - x; cropH += cropY - y; cropX = x; cropY = y; break;
       case 1: cropH += cropY - y; cropY = y; break;
@@ -258,16 +350,58 @@ canvas.addEventListener('mousemove', e => {
       case 6: cropH = y - cropY; break;
       case 7: cropW = x - cropX; cropH = y - cropY; break;
     }
-    if (lockAspectCheckbox.checked && aspectRatio) {
-      cropH = cropW / aspectRatio;
-    }
+    
     cropW = Math.max(min, cropW);
     cropH = Math.max(min, cropH);
+    
+    // Maintain aspect ratio if locked
+    if (lockAspectCheckbox.checked && aspectRatio) {
+      // Identify which dimension changed most
+      const widthChangedMore = Math.abs(cropW - oldCropW) > Math.abs(cropH - oldCropH);
+      
+      if (widthChangedMore) {
+        cropH = cropW / aspectRatio;
+      } else {
+        cropW = cropH * aspectRatio;
+      }
+      
+      // Adjust position for corner handles to maintain expected behavior
+      if (activeHandle === 0) {
+        if (widthChangedMore) cropY = oldCropY + oldCropH - cropH;
+        else cropX = oldCropX + oldCropW - cropW;
+      } else if (activeHandle === 2) {
+        if (!widthChangedMore) cropY = oldCropY + oldCropH - cropH;
+      } else if (activeHandle === 5) {
+        if (!widthChangedMore) cropX = oldCropX + oldCropW - cropW;
+      }
+    }
+    
+    // Ensure crop box stays within image bounds
+    if (cropX < 0) {
+      cropW += cropX;
+      cropX = 0;
+    }
+    if (cropY < 0) {
+      cropH += cropY;
+      cropY = 0;
+    }
+    if (cropX + cropW > canvas.width) {
+      cropW = canvas.width - cropX;
+    }
+    if (cropY + cropH > canvas.height) {
+      cropH = canvas.height - cropY;
+    }
   }
   draw();
 });
 
 canvas.addEventListener('mouseup', () => {
+  isDragging = false;
+  isResizing = false;
+});
+
+// Also handle mouse leaving the canvas
+canvas.addEventListener('mouseleave', () => {
   isDragging = false;
   isResizing = false;
 });
@@ -284,6 +418,7 @@ function handleFile(file) {
       cropX = (image.width - cropW) / 2;
       cropY = (image.height - cropH) / 2;
       imageLoaded = true;
+      currentAspectRatio = cropW / cropH;
       draw();
     };
     image.src = e.target.result;
@@ -332,6 +467,7 @@ cropBtn.addEventListener('click', () => {
   cropY = 0;
   cropW = canvas.width;
   cropH = canvas.height;
+  currentAspectRatio = cropW / cropH;
 
   // Modify draw() so it only draws the image if cropX == 0
   draw = function() {
@@ -340,8 +476,6 @@ cropBtn.addEventListener('click', () => {
     // No crop box anymore after crop
   };
 });
-
-
 
 resetBtn.addEventListener('click', () => {
   if (!image.src) return;
@@ -357,11 +491,65 @@ downloadBtn.addEventListener('click', () => {
 
 aspectRatioSelect.addEventListener('change', () => {
   const val = aspectRatioSelect.value;
-  if (val === 'free') aspectRatio = null;
-  else if (val === 'original') aspectRatio = image.width / image.height;
+  if (val === 'free') {
+    // If free mode and lock is checked, use current ratio
+    if (lockAspectCheckbox.checked) {
+      aspectRatio = currentAspectRatio;
+    } else {
+      aspectRatio = null;
+    }
+  }
+  else if (val === 'original') {
+    aspectRatio = image.width / image.height;
+  }
   else {
-    const [w, h] = val.split(':').map(Number);
+    const ratioStr = val.split(' ')[0]; // Get just the ratio part before any description
+    const [w, h] = ratioStr.split(':').map(Number);
     aspectRatio = w / h;
+  }
+  
+  // Apply the new aspect ratio to current crop
+  if (aspectRatio && lockAspectCheckbox.checked) {
+    // Keep the center position, adjust width/height
+    const centerX = cropX + cropW/2;
+    const centerY = cropY + cropH/2;
+    
+    // Try to keep width constant and adjust height
+    cropH = cropW / aspectRatio;
+    
+    // If too tall, adjust width instead
+    if (cropY + cropH > canvas.height) {
+      cropH = Math.min(cropH, canvas.height - cropY);
+      cropW = cropH * aspectRatio;
+    }
+    
+    // Recenter
+    cropX = centerX - cropW/2;
+    cropY = centerY - cropH/2;
+    
+    // Ensure within bounds
+    cropX = Math.max(0, Math.min(cropX, canvas.width - cropW));
+    cropY = Math.max(0, Math.min(cropY, canvas.height - cropH));
+    
+    draw();
+  }
+});
+
+// Handle lock aspect ratio checkbox change
+lockAspectCheckbox.addEventListener('change', () => {
+  if (lockAspectCheckbox.checked) {
+    // If in free mode, use the current aspect ratio
+    if (aspectRatioSelect.value === 'free') {
+      aspectRatio = currentAspectRatio;
+    } else {
+      // Otherwise use the selected ratio
+      aspectRatioSelect.dispatchEvent(new Event('change'));
+    }
+  } else {
+    // Only set to null if in free mode
+    if (aspectRatioSelect.value === 'free') {
+      aspectRatio = null;
+    }
   }
 });
 </script>
