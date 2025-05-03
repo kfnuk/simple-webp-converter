@@ -100,89 +100,94 @@
     <input type="file" id="file-input" accept="image/png">
     <div id="output"></div>
   </main>
-  <script>
-    const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('file-input');
-    const output = document.getElementById('output');
+<script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const output = document.getElementById('output');
+  let originalFileName = '';
 
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('hover');
-    });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('hover');
-      handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('hover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('hover');
+    handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
 
-    function handleFile(file) {
-      if (!file || file.type !== 'image/png') {
-        alert('Please upload a PNG image.');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => cropWhiteSpace(img);
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+  function handleFile(file) {
+    if (!file || file.type !== 'image/png') {
+      alert('Please upload a PNG image.');
+      return;
     }
 
-    function cropWhiteSpace(image) {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.drawImage(image, 0, 0);
+    originalFileName = file.name;
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const pixels = imageData.data;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => cropWhiteSpace(img);
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
-      let top = null, bottom = null, left = null, right = null;
+  function cropWhiteSpace(image) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    ctx.drawImage(image, 0, 0);
 
-      for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-          const idx = (y * canvas.width + x) * 4;
-          const alpha = pixels[idx + 3];
-          if (alpha !== 0) {
-            if (top === null) top = y;
-            bottom = y;
-            if (left === null || x < left) left = x;
-            if (right === null || x > right) right = x;
-          }
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    let top = null, bottom = null, left = null, right = null;
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const idx = (y * canvas.width + x) * 4;
+        const alpha = pixels[idx + 3];
+        if (alpha !== 0) {
+          if (top === null) top = y;
+          bottom = y;
+          if (left === null || x < left) left = x;
+          if (right === null || x > right) right = x;
         }
       }
-
-      if (top === null) {
-        alert("The image appears to be completely transparent.");
-        return;
-      }
-
-      const trimmedWidth = right - left + 1;
-      const trimmedHeight = bottom - top + 1;
-      const trimmedCanvas = document.createElement('canvas');
-      trimmedCanvas.width = trimmedWidth;
-      trimmedCanvas.height = trimmedHeight;
-      trimmedCanvas.getContext('2d').drawImage(canvas, left, top, trimmedWidth, trimmedHeight, 0, 0, trimmedWidth, trimmedHeight);
-
-      output.innerHTML = '';
-      output.appendChild(trimmedCanvas);
-
-      trimmedCanvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'trimmed-image.png';
-        link.className = 'download-btn';
-        link.textContent = 'Download Trimmed Image';
-        output.appendChild(link);
-      });
     }
-  </script>
+
+    if (top === null) {
+      alert("The image appears to be completely transparent.");
+      return;
+    }
+
+    const trimmedWidth = right - left + 1;
+    const trimmedHeight = bottom - top + 1;
+    const trimmedCanvas = document.createElement('canvas');
+    trimmedCanvas.width = trimmedWidth;
+    trimmedCanvas.height = trimmedHeight;
+    trimmedCanvas.getContext('2d').drawImage(canvas, left, top, trimmedWidth, trimmedHeight, 0, 0, trimmedWidth, trimmedHeight);
+
+    output.innerHTML = '';
+    output.appendChild(trimmedCanvas);
+
+    trimmedCanvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const baseName = originalFileName.replace(/\\.png$/i, '');
+      link.download = baseName + '-trimmed.png';
+      link.className = 'download-btn';
+      link.textContent = 'Download Trimmed Image';
+      output.appendChild(link);
+    });
+  }
+</script>
+
 </body>
 </html>
